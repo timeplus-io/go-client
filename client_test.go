@@ -1,7 +1,7 @@
 package client_test
 
 import (
-	"github.com/timeplus-io/go-client/client"
+	"github.com/timeplus-io/go-client"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
