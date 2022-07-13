@@ -9,6 +9,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/reactivex/rxgo/v2"
+
 	"github.com/timeplus-io/go-client/utils"
 )
 
