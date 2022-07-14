@@ -11,6 +11,6 @@ func main() {
 	timeplusClient := timeplus.NewCient("http://localhost:8000", "")
 	_, err := metrics.NewMetrics("cpu", []string{}, []string{"value"}, timeplusClient)
 	if err != nil {
-		fmt.Printf("failed to create metric")
+		fmt.Printf("failed to create metric, %s\n", err)
 	}
 }

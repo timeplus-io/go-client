@@ -18,6 +18,7 @@ type Metrics struct {
 	valueNames []string
 
 	timeplusClient *timeplus.TimeplusClient
+	streamName     string
 	observations   []*Observation
 	lock           sync.Mutex
 	interval       time.Duration
@@ -43,16 +44,31 @@ func NewMetrics(name string, tags []string, values []string, timeplusClient *tim
 		lock:           sync.Mutex{},
 		interval:       1 * time.Second,
 	}
-	if err := m.init(); err != nil {
+	if err := m.create(); err != nil {
 		return nil, err
 	}
 	go m.start()
 	return m, nil
 }
 
-func (m *Metrics) init() error {
+func GetMetrics(name string, timeplusClient *timeplus.TimeplusClient) (*Metrics, error) {
+	m := &Metrics{
+		name:           name,
+		timeplusClient: timeplusClient,
+		observations:   make([]*Observation, 0),
+		lock:           sync.Mutex{},
+		interval:       1 * time.Second,
+	}
+	if err := m.get(); err != nil {
+		return nil, err
+	}
+	go m.start()
+	return m, nil
+}
+
+func (m *Metrics) createMetricStream() error {
 	streamDef := timeplus.StreamDef{
-		Name: m.name,
+		Name: m.streamName,
 		Columns: []timeplus.ColumnDef{
 			{
 				Name: "namepsace",
@@ -91,6 +107,28 @@ func (m *Metrics) init() error {
 	m.streamDef = streamDef
 	m.streamCols = m.getCols()
 	return m.timeplusClient.CreateStream(streamDef)
+}
+
+func (m *Metrics) create() error {
+	m.streamName = fmt.Sprintf("_tp_metric_%s", m.name)
+	if m.timeplusClient.ExistStream(m.streamName) {
+		return fmt.Errorf("metrics stream already exist")
+	} else {
+		return m.createMetricStream()
+	}
+}
+
+func (m *Metrics) getMetricStream() error {
+	return nil
+}
+
+func (m *Metrics) get() error {
+	m.streamName = fmt.Sprintf("_tp_metric_%s", m.name)
+	if !m.timeplusClient.ExistStream(m.streamName) {
+		return fmt.Errorf("metrics stream does not exist")
+	} else {
+		return m.getMetricStream()
+	}
 }
 
 func (m *Metrics) start() {

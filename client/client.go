@@ -146,6 +146,21 @@ func (s *TimeplusClient) ExistStream(name string) bool {
 	return false
 }
 
+func (s *TimeplusClient) GetStream(name string) (*StreamDef, error) {
+	streams, err := s.ListStream()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, s := range streams {
+		if s.Name == name {
+			return &s, nil
+		}
+	}
+
+	return nil, fmt.Errorf("stream %s not found", name)
+}
+
 func (s *TimeplusClient) ListStream() ([]StreamDef, error) {
 	url := fmt.Sprintf("%s/api/%s/streams", s.address, APIVersion)
 	_, respBody, err := utils.HttpRequestWithAPIKey(http.MethodGet, url, nil, s.client, s.apikey)
