@@ -249,8 +249,9 @@ func (s *TimeplusClient) QueryStream(sql string) (rxgo.Observable, error) {
 	wsUrl := fmt.Sprintf("%s/ws/queries/%s", s.address, queryResult.ID)
 	wsUrl = strings.Replace(wsUrl, "http", "ws", 1)
 
-	var requestHeader http.Header
-	requestHeader.Add("X-Api-Key", s.apikey)
+	requestHeader := http.Header{}
+	requestHeader.Set("X-Api-Key", s.apikey)
+
 	c, _, err := websocket.DefaultDialer.Dial(wsUrl, requestHeader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to websocket %s : %w", wsUrl, err)
