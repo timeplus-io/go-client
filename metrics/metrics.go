@@ -27,6 +27,7 @@ type Metrics struct {
 }
 
 type Observation struct {
+	timestamp float64
 	namespace string
 	subsystem string
 	tags      []string
@@ -71,6 +72,10 @@ func (m *Metrics) createMetricStream() error {
 		Name: m.streamName,
 		Columns: []timeplus.ColumnDef{
 			{
+				Name: "timestamp",
+				Type: "float64",
+			},
+			{
 				Name: "namepsace",
 				Type: "string",
 			},
@@ -83,6 +88,7 @@ func (m *Metrics) createMetricStream() error {
 				Type: "json",
 			},
 		},
+		EventTimeColumn:        "timestamp",
 		TTLExpression:          DefaultTTL,
 		LogStoreRetentionBytes: DefaultLogStoreRetentionBytes,
 		LogStoreRetentionMS:    DefaultLogStoreRetentionMS,
@@ -207,6 +213,7 @@ func (m *Metrics) Observe(namepsace string, subsystem string, tags []string, val
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	ob := &Observation{
+		timestamp: float64(time.Now().UnixMicro()),
 		namespace: namepsace,
 		subsystem: subsystem,
 		tags:      tags,
