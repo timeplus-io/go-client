@@ -27,11 +27,11 @@ type Metrics struct {
 }
 
 type Observation struct {
-	timestamp float64
+	timestamp string
 	namespace string
 	subsystem string
-	tags      []string
-	values    []float64
+	tags      []any
+	values    []any
 	extraTags map[string]interface{}
 }
 
@@ -73,7 +73,7 @@ func (m *Metrics) createMetricStream() error {
 		Columns: []timeplus.ColumnDef{
 			{
 				Name: "timestamp",
-				Type: "float64",
+				Type: "string",
 			},
 			{
 				Name: "namepsace",
@@ -88,7 +88,7 @@ func (m *Metrics) createMetricStream() error {
 				Type: "json",
 			},
 		},
-		EventTimeColumn:        "timestamp",
+		EventTimeColumn:        "to_datetime64(timestamp,9)",
 		TTLExpression:          DefaultTTL,
 		LogStoreRetentionBytes: DefaultLogStoreRetentionBytes,
 		LogStoreRetentionMS:    DefaultLogStoreRetentionMS,
@@ -96,16 +96,18 @@ func (m *Metrics) createMetricStream() error {
 
 	for _, name := range m.tagNames {
 		col := timeplus.ColumnDef{
-			Name: name,
-			Type: "string",
+			Name:     name,
+			Type:     "string",
+			Nullable: true,
 		}
 		streamDef.Columns = append(streamDef.Columns, col)
 	}
 
 	for _, value := range m.valueNames {
 		col := timeplus.ColumnDef{
-			Name: value,
-			Type: "float64",
+			Name:     value,
+			Type:     "float64",
+			Nullable: true,
 		}
 		streamDef.Columns = append(streamDef.Columns, col)
 	}
@@ -193,27 +195,34 @@ func (m *Metrics) toIngestPayload(obs []*Observation) timeplus.IngestPayload {
 }
 
 func (m *Metrics) toIngestRow(ob *Observation) []any {
-	// TODO: need to make sure the ob match the schema, not extra tags or values
 	row := make([]any, 0)
+	row = append(row, ob.timestamp)
 	row = append(row, ob.namespace)
 	row = append(row, ob.subsystem)
 	row = append(row, ob.extraTags)
-
-	for _, tag := range ob.tags {
-		row = append(row, tag)
-	}
-
-	for _, value := range ob.values {
-		row = append(row, value)
-	}
+	row = append(row, ob.tags...)
+	row = append(row, ob.values...)
 	return row
 }
 
-func (m *Metrics) Observe(namepsace string, subsystem string, tags []string, values []float64, extraTags map[string]interface{}) {
+// Note, the tags could be nil or string
+// Note, the values could be nil or float64
+func (m *Metrics) Observe(namepsace string, subsystem string, tags []any, values []any, extraTags map[string]interface{}) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
+
+	if len(tags) != len(m.tagNames) {
+		return fmt.Errorf("the number of tags does not match, should be %d", len(m.tagNames))
+	}
+
+	if len(values) != len(m.valueNames) {
+		return fmt.Errorf("the number of valus does not match, should be %d", len(m.valueNames))
+	}
+
+	// TODO: should validate the tags are string/nil and values are number/nil
+
 	ob := &Observation{
-		timestamp: float64(time.Now().UnixMicro()),
+		timestamp: fmt.Sprintf("%d", time.Now().UnixNano()),
 		namespace: namepsace,
 		subsystem: subsystem,
 		tags:      tags,
@@ -221,4 +230,5 @@ func (m *Metrics) Observe(namepsace string, subsystem string, tags []string, val
 		extraTags: extraTags,
 	}
 	m.observations = append(m.observations, ob)
+	return nil
 }
