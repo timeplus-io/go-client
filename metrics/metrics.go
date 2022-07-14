@@ -46,7 +46,7 @@ func NewMetrics(name string, tags []string, values []string, timeplusClient *tim
 	if err := m.init(); err != nil {
 		return nil, err
 	}
-	m.start()
+	go m.start()
 	return m, nil
 }
 
