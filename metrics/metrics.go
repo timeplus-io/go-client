@@ -126,7 +126,8 @@ func (m *Metrics) getMetricStream() error {
 	}
 
 	m.streamDef = *stream
-	m.streamCols = m.getCols()
+	allCols := m.getCols()
+	m.streamCols = allCols[0 : len(allCols)-2]
 	fmt.Printf("the stream cols is %v\n", m.streamCols)
 	return nil
 }
