@@ -36,6 +36,19 @@ type Observation struct {
 }
 
 func NewMetrics(name string, tags []string, values []string, timeplusClient *timeplus.TimeplusClient) (*Metrics, error) {
+	var m *Metrics
+	m, err := GetMetrics(name, timeplusClient)
+	if err != nil {
+		if m, err := CreateMetrics(name, tags, values, timeplusClient); err != nil {
+			return nil, err
+		} else {
+			return m, nil
+		}
+	}
+	return m, nil
+}
+
+func CreateMetrics(name string, tags []string, values []string, timeplusClient *timeplus.TimeplusClient) (*Metrics, error) {
 	m := &Metrics{
 		name:           name,
 		tagNames:       tags,
@@ -176,13 +189,7 @@ func (m *Metrics) get() error {
 
 func (m *Metrics) start() {
 	for {
-		obs := m.getObservations()
-		if len(obs) > 0 {
-			payload := m.toIngestPayload(obs)
-			if err := m.timeplusClient.InsertData(payload); err != nil {
-				fmt.Printf("failed to ingest metrics data %s", err)
-			}
-		}
+		m.Flush()
 		time.Sleep(m.interval)
 	}
 }
@@ -256,4 +263,14 @@ func (m *Metrics) Observe(namepsace string, subsystem string, tags []any, values
 	}
 	m.observations = append(m.observations, ob)
 	return nil
+}
+
+func (m *Metrics) Flush() {
+	obs := m.getObservations()
+	if len(obs) > 0 {
+		payload := m.toIngestPayload(obs)
+		if err := m.timeplusClient.InsertData(payload); err != nil {
+			fmt.Printf("failed to ingest metrics data %s", err)
+		}
+	}
 }

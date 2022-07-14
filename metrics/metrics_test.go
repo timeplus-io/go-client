@@ -12,7 +12,7 @@ import (
 func TestMetric(t *testing.T) {
 	timeplusClient := timeplus.NewCient("http://localhost:8000", "")
 	var m *metrics.Metrics
-	m, err := metrics.NewMetrics("cpu", []string{"a", "x", "g"}, []string{"value"}, timeplusClient)
+	m, err := metrics.CreateMetrics("cpu", []string{"a", "x", "g"}, []string{"value"}, timeplusClient)
 	if err != nil {
 		fmt.Printf("failed to create metric, %s\n", err)
 		m, err = metrics.GetMetrics("cpu", timeplusClient)
