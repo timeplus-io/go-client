@@ -135,9 +135,34 @@ func (m *Metrics) getMetricStream() error {
 
 	m.streamDef = *stream
 	allCols := m.getCols()
+
 	m.streamCols = allCols[0 : len(allCols)-2]
+	m.tagNames = m.getTagNames()
+	m.valueNames = m.getValueNames()
 	fmt.Printf("the stream cols is %v\n", m.streamCols)
 	return nil
+}
+
+func (m *Metrics) getTagNames() []string {
+	result := make([]string, 0)
+	cols := m.streamDef.Columns[4 : len(m.streamDef.Columns)-2]
+	for _, col := range cols {
+		if col.Type == "string" {
+			result = append(result, col.Name)
+		}
+	}
+	return result
+}
+
+func (m *Metrics) getValueNames() []string {
+	result := make([]string, 0)
+	cols := m.streamDef.Columns[4 : len(m.streamDef.Columns)-2]
+	for _, col := range cols {
+		if col.Type == "float64" {
+			result = append(result, col.Name)
+		}
+	}
+	return result
 }
 
 func (m *Metrics) get() error {
