@@ -106,6 +106,7 @@ func (m *Metrics) createMetricStream() error {
 
 	m.streamDef = streamDef
 	m.streamCols = m.getCols()
+	fmt.Printf("the stream cols is %v\n", m.streamCols)
 	return m.timeplusClient.CreateStream(streamDef)
 }
 
