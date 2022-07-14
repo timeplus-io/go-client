@@ -14,8 +14,6 @@ const DefaultLogStoreRetentionMS = 1342177280
 
 type Metrics struct {
 	name       string
-	namespace  string
-	subsystem  string
 	tagNames   []string
 	valueNames []string
 
@@ -35,11 +33,9 @@ type Observation struct {
 	extraTags map[string]interface{}
 }
 
-func NewMetrics(name string, namespace string, subsystem string, tags []string, values []string, timeplusClient *timeplus.TimeplusClient) (*Metrics, error) {
+func NewMetrics(name string, tags []string, values []string, timeplusClient *timeplus.TimeplusClient) (*Metrics, error) {
 	m := &Metrics{
 		name:           name,
-		namespace:      namespace,
-		subsystem:      subsystem,
 		tagNames:       tags,
 		valueNames:     values,
 		timeplusClient: timeplusClient,
