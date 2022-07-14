@@ -11,7 +11,7 @@ import (
 )
 
 func TestMetric(t *testing.T) {
-	timeplusClient := client.NewCient("https://latest.timeplus.io", "OgTcKISs6PCK0isAKXMYlNRpI6RgCBvcQWcJbXapNzqMSO4WjoHU1DKbSZl-")
+	timeplusClient := client.NewCient("https://latest.timeplus.io", "")
 	streamResult, err := timeplusClient.QueryStream("select * from car_live_data")
 
 	if err != nil {
