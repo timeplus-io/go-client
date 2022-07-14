@@ -179,7 +179,7 @@ func (m *Metrics) getCols() []string {
 
 func (m *Metrics) toIngestPayload(obs []*Observation) timeplus.IngestPayload {
 	payload := timeplus.IngestPayload{
-		Stream: m.name,
+		Stream: m.streamName,
 		Data: timeplus.IngestData{
 			Columns: m.streamCols,
 			Data:    make([][]any, len(obs)),

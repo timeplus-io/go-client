@@ -2,7 +2,7 @@ module metrics
 
 go 1.18
 
-require github.com/timeplus-io/go-client v0.0.0-20220714171109-cbafe670483b
+require github.com/timeplus-io/go-client v0.0.0-20220714174239-2237f88a9d56
 
 require (
 	github.com/cenkalti/backoff/v4 v4.0.0 // indirect
