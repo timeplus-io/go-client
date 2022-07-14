@@ -35,19 +35,6 @@ type Observation struct {
 	extraTags map[string]interface{}
 }
 
-func NewMetrics(name string, tags []string, values []string, timeplusClient *timeplus.TimeplusClient) (*Metrics, error) {
-	var m *Metrics
-	m, err := GetMetrics(name, timeplusClient)
-	if err != nil {
-		if m, err := CreateMetrics(name, tags, values, timeplusClient); err != nil {
-			return nil, err
-		} else {
-			return m, nil
-		}
-	}
-	return m, nil
-}
-
 func CreateMetrics(name string, tags []string, values []string, timeplusClient *timeplus.TimeplusClient) (*Metrics, error) {
 	m := &Metrics{
 		name:           name,
@@ -77,6 +64,19 @@ func GetMetrics(name string, timeplusClient *timeplus.TimeplusClient) (*Metrics,
 		return nil, err
 	}
 	go m.start()
+	return m, nil
+}
+
+func NewMetrics(name string, tags []string, values []string, timeplusClient *timeplus.TimeplusClient) (*Metrics, error) {
+	var m *Metrics
+	m, err := GetMetrics(name, timeplusClient)
+	if err != nil {
+		if m, err := CreateMetrics(name, tags, values, timeplusClient); err != nil {
+			return nil, err
+		} else {
+			return m, nil
+		}
+	}
 	return m, nil
 }
 
