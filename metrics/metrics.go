@@ -119,6 +119,14 @@ func (m *Metrics) create() error {
 }
 
 func (m *Metrics) getMetricStream() error {
+	stream, err := m.timeplusClient.GetStream(m.streamName)
+	if err != nil {
+		return err
+	}
+
+	m.streamDef = *stream
+	m.streamCols = m.getCols()
+	fmt.Printf("the stream cols is %v\n", m.streamCols)
 	return nil
 }
 
