@@ -109,18 +109,16 @@ func (m *Metrics) createMetricStream() error {
 
 	for _, name := range m.tagNames {
 		col := timeplus.ColumnDef{
-			Name:     name,
-			Type:     "string",
-			Nullable: true,
+			Name: name,
+			Type: "string",
 		}
 		streamDef.Columns = append(streamDef.Columns, col)
 	}
 
 	for _, value := range m.valueNames {
 		col := timeplus.ColumnDef{
-			Name:     value,
-			Type:     "float64",
-			Nullable: true,
+			Name: value,
+			Type: "float64",
 		}
 		streamDef.Columns = append(streamDef.Columns, col)
 	}
