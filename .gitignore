@@ -1,3 +1,5 @@
+env.sh
+
 # Binaries for programs and plugins
 *.exe
 *.exe~

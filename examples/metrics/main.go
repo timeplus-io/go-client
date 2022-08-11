@@ -2,14 +2,19 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"time"
 
-	timeplus "github.com/timeplus-io/go-client/client"
+	"github.com/timeplus-io/go-client/client"
 	"github.com/timeplus-io/go-client/metrics"
 )
 
 func main() {
-	timeplusClient := timeplus.NewCient("http://localhost:8000", "")
+	timeplusAddress := os.Getenv("TIMEPLUS_ADDRESS")
+	timeplusApiKey := os.Getenv("TIMEPLUS_API_KEY")
+	timeplusTenant := os.Getenv("TIMEPLUS_TENANT")
+
+	timeplusClient := client.NewCient(timeplusAddress, timeplusTenant, timeplusApiKey)
 	var m *metrics.Metrics
 	m, err := metrics.CreateMetrics("cpu", []string{"a", "x", "g"}, []string{"value"}, timeplusClient)
 	if err != nil {

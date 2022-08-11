@@ -3,6 +3,7 @@ package client_test
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -10,12 +11,17 @@ import (
 	"github.com/timeplus-io/go-client/client"
 )
 
-func TestMetric(t *testing.T) {
-	timeplusClient := client.NewCient("https://latest.timeplus.io", "")
-	streamResult, err := timeplusClient.QueryStream("select * from car_live_data")
+func TestClient(t *testing.T) {
+	timeplusAddress := os.Getenv("TIMEPLUS_ADDRESS")
+	timeplusApiKey := os.Getenv("TIMEPLUS_API_KEY")
+	timeplusTenant := os.Getenv("TIMEPLUS_TENANT")
+
+	timeplusClient := client.NewCient(timeplusAddress, timeplusTenant, timeplusApiKey)
+	streamResult, err := timeplusClient.QueryStream("select 1")
 
 	if err != nil {
 		fmt.Printf("failed to run query, %s\n", err)
+		return
 	}
 
 	disposed := streamResult.ForEach(func(v interface{}) {
