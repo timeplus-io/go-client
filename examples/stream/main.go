@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	timeplusClient := client.NewCient("http://localhost:8000", "")
+	timeplusClient := client.NewCient("http://localhost:8000", "", "")
 	if streams, err := timeplusClient.ListStream(); err != nil {
 		fmt.Printf("failed to list existing streams\n")
 	} else {
