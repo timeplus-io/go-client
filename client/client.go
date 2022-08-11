@@ -102,19 +102,29 @@ type ThroughputStat struct {
 type TimeplusClient struct {
 	address string
 	apikey  string
+	tenant  string
 	client  *http.Client
 }
 
-func NewCient(address string, apikey string) *TimeplusClient {
+func NewCient(address string, tenant string, apikey string) *TimeplusClient {
 	return &TimeplusClient{
 		address: address,
 		apikey:  apikey,
+		tenant:  tenant,
 		client:  utils.NewDefaultHttpClient(),
 	}
 }
 
+func (s *TimeplusClient) baseUrl() string {
+	if len(s.tenant) == 0 {
+		return fmt.Sprintf("%s/api/%s", s.address, APIVersion)
+	} else {
+		return fmt.Sprintf("%s/%s/api/%s", s.address, s.tenant, APIVersion)
+	}
+}
+
 func (s *TimeplusClient) CreateStream(streamDef StreamDef) error {
-	url := fmt.Sprintf("%s/api/%s/streams", s.address, APIVersion)
+	url := fmt.Sprintf("%s/streams", s.baseUrl())
 	_, _, err := utils.HttpRequestWithAPIKey(http.MethodPost, url, streamDef, s.client, s.apikey)
 	if err != nil {
 		return fmt.Errorf("failed to create stream %s: %w", streamDef.Name, err)
@@ -123,7 +133,7 @@ func (s *TimeplusClient) CreateStream(streamDef StreamDef) error {
 }
 
 func (s *TimeplusClient) DeleteStream(streamName string) error {
-	url := fmt.Sprintf("%s/api/%s/streams/%s", s.address, APIVersion, streamName)
+	url := fmt.Sprintf("%s/streams/%s", s.baseUrl(), streamName)
 	_, _, err := utils.HttpRequestWithAPIKey(http.MethodDelete, url, nil, s.client, s.apikey)
 	if err != nil {
 		return fmt.Errorf("failed to delete stream %s: %w", streamName, err)
@@ -162,7 +172,7 @@ func (s *TimeplusClient) GetStream(name string) (*StreamDef, error) {
 }
 
 func (s *TimeplusClient) ListStream() ([]StreamDef, error) {
-	url := fmt.Sprintf("%s/api/%s/streams", s.address, APIVersion)
+	url := fmt.Sprintf("%s/streams", s.baseUrl())
 	_, respBody, err := utils.HttpRequestWithAPIKey(http.MethodGet, url, nil, s.client, s.apikey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list stream : %w", err)
@@ -175,7 +185,7 @@ func (s *TimeplusClient) ListStream() ([]StreamDef, error) {
 }
 
 func (s *TimeplusClient) CreateView(view View) error {
-	url := fmt.Sprintf("%s/api/%s/views", s.address, APIVersion)
+	url := fmt.Sprintf("%s/views", s.baseUrl())
 	_, _, err := utils.HttpRequestWithAPIKey(http.MethodPost, url, view, s.client, s.apikey)
 	if err != nil {
 		return fmt.Errorf("failed to create view %s: %w", view.Name, err)
@@ -184,7 +194,7 @@ func (s *TimeplusClient) CreateView(view View) error {
 }
 
 func (s *TimeplusClient) ListView() ([]View, error) {
-	url := fmt.Sprintf("%s/api/%s/views", s.address, APIVersion)
+	url := fmt.Sprintf("%s/views", s.baseUrl())
 	_, respBody, err := utils.HttpRequestWithAPIKey(http.MethodGet, url, nil, s.client, s.apikey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list views : %w", err)
@@ -212,7 +222,7 @@ func (s *TimeplusClient) ExistView(name string) bool {
 }
 
 func (s *TimeplusClient) InsertData(data IngestPayload) error {
-	url := fmt.Sprintf("%s/api/%s/streams/%s/ingest", s.address, APIVersion, data.Stream)
+	url := fmt.Sprintf("%s/streams/%s/ingest", s.baseUrl(), data.Stream)
 	_, _, err := utils.HttpRequestWithAPIKey(http.MethodPost, url, data.Data, s.client, s.apikey)
 	if err != nil {
 		return fmt.Errorf("failed to ingest data into stream %s: %w", data.Stream, err)
@@ -236,7 +246,7 @@ func (s *TimeplusClient) QueryStream(sql string) (rxgo.Observable, error) {
 		Tags:        []string{},
 	}
 
-	createQueryUrl := fmt.Sprintf("%s/api/%s/queries", s.address, APIVersion)
+	createQueryUrl := fmt.Sprintf("%s/queries", s.baseUrl())
 	_, respBody, err := utils.HttpRequestWithAPIKey(http.MethodPost, createQueryUrl, query, s.client, s.apikey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create query : %w", err)
@@ -245,7 +255,12 @@ func (s *TimeplusClient) QueryStream(sql string) (rxgo.Observable, error) {
 	var queryResult QueryInfo
 	json.NewDecoder(bytes.NewBuffer(respBody)).Decode(&queryResult)
 
-	wsUrl := fmt.Sprintf("%s/ws/queries/%s", s.address, queryResult.ID)
+	var wsUrl string
+	if len(s.tenant) == 0 {
+		wsUrl = fmt.Sprintf("%s/ws/queries/%s", s.address, queryResult.ID)
+	} else {
+		wsUrl = fmt.Sprintf("%s/%s/ws/queries/%s", s.address, s.tenant, queryResult.ID)
+	}
 	wsUrl = strings.Replace(wsUrl, "http", "ws", 1)
 
 	requestHeader := http.Header{}
