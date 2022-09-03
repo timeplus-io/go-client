@@ -17,17 +17,22 @@ func TestClient(t *testing.T) {
 	timeplusTenant := os.Getenv("TIMEPLUS_TENANT")
 
 	timeplusClient := client.NewCient(timeplusAddress, timeplusTenant, timeplusApiKey)
-	streamResult, err := timeplusClient.QueryStream("select 1")
+	streamResult, queryResult, err := timeplusClient.QueryStream("select * from car_live_data")
 
 	if err != nil {
 		fmt.Printf("failed to run query, %s\n", err)
 		return
 	}
 
-	disposed := streamResult.ForEach(func(v interface{}) {
-		event := v.(map[string]interface{})
-		fmt.Printf("got one event %v", event)
+	fmt.Printf("query result header is, %v\n", queryResult.Result.Header)
 
+	bufferStream := streamResult.Take(2)
+	disposed := bufferStream.ForEach(func(v interface{}) {
+		event := v.([]interface{})
+		fmt.Printf("got one event %v\n", event)
+		for _, cell := range event[0 : len(event)-2] {
+			fmt.Printf("got one cell %v:%T\n", cell, cell)
+		}
 	}, func(err error) {
 		fmt.Printf("failed to query %s", err)
 	}, func() {
