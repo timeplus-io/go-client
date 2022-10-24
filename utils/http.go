@@ -27,6 +27,16 @@ func NewDefaultHTTPClientConfig() *HTTPClientConfig {
 	}
 }
 
+func NewHTTPClientConfig(insecureSkipVerify bool, maxIdleConns int, maxConnsPerHost int, maxIdleConnsPerHost int, timeout int) *HTTPClientConfig {
+	return &HTTPClientConfig{
+		InsecureSkipVerify:  insecureSkipVerify,
+		MaxIdleConns:        maxIdleConns,
+		MaxConnsPerHost:     maxConnsPerHost,
+		MaxIdleConnsPerHost: maxIdleConnsPerHost,
+		Timeout:             time.Duration(timeout) * time.Second,
+	}
+}
+
 func NewHttpClient(config HTTPClientConfig) *http.Client {
 	t := http.DefaultTransport.(*http.Transport).Clone()
 	t.TLSClientConfig.InsecureSkipVerify = config.InsecureSkipVerify

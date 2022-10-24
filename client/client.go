@@ -115,6 +115,15 @@ func NewCient(address string, tenant string, apikey string) *TimeplusClient {
 	}
 }
 
+func NewCientWithHttpConfig(address string, tenant string, apikey string, config *utils.HTTPClientConfig) *TimeplusClient {
+	return &TimeplusClient{
+		address: address,
+		apikey:  apikey,
+		tenant:  tenant,
+		client:  utils.NewHttpClient(*config),
+	}
+}
+
 func (s *TimeplusClient) baseUrl() string {
 	if len(s.tenant) == 0 {
 		return fmt.Sprintf("%s/api/%s", s.address, APIVersion)
