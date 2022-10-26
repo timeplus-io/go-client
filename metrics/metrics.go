@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	timeplus "github.com/timeplus-io/go-client/client"
+	"github.com/timeplus-io/go-client/timeplus"
 )
 
 const DefaultTTL = "to_datetime(_tp_time) + INTERVAL 30 DAY"
@@ -35,7 +35,7 @@ type Observation struct {
 	extraTags map[string]interface{}
 }
 
-func CreateMetrics(name string, tags []string, values []string, timeplusClient *timeplus.TimeplusClient) (*Metrics, error) {
+func CreateMetrics(name string, tags []string, values []string, timeplusClient *timeplus.TimeplusClient, pushInterval time.Duration) (*Metrics, error) {
 	m := &Metrics{
 		name:           name,
 		tagNames:       tags,
@@ -43,7 +43,7 @@ func CreateMetrics(name string, tags []string, values []string, timeplusClient *
 		timeplusClient: timeplusClient,
 		observations:   make([]*Observation, 0),
 		lock:           sync.Mutex{},
-		interval:       1 * time.Second,
+		interval:       pushInterval,
 	}
 	if err := m.create(); err != nil {
 		return nil, err
@@ -52,13 +52,13 @@ func CreateMetrics(name string, tags []string, values []string, timeplusClient *
 	return m, nil
 }
 
-func GetMetrics(name string, timeplusClient *timeplus.TimeplusClient) (*Metrics, error) {
+func GetMetrics(name string, timeplusClient *timeplus.TimeplusClient, pushInterval time.Duration) (*Metrics, error) {
 	m := &Metrics{
 		name:           name,
 		timeplusClient: timeplusClient,
 		observations:   make([]*Observation, 0),
 		lock:           sync.Mutex{},
-		interval:       1 * time.Second,
+		interval:       pushInterval,
 	}
 	if err := m.get(); err != nil {
 		return nil, err
@@ -67,11 +67,11 @@ func GetMetrics(name string, timeplusClient *timeplus.TimeplusClient) (*Metrics,
 	return m, nil
 }
 
-func NewMetrics(name string, tags []string, values []string, timeplusClient *timeplus.TimeplusClient) (*Metrics, error) {
+func NewMetrics(name string, tags []string, values []string, timeplusClient *timeplus.TimeplusClient, pushInterval time.Duration) (*Metrics, error) {
 	var m *Metrics
-	m, err := GetMetrics(name, timeplusClient)
+	m, err := GetMetrics(name, timeplusClient, pushInterval)
 	if err != nil {
-		if m, err := CreateMetrics(name, tags, values, timeplusClient); err != nil {
+		if m, err := CreateMetrics(name, tags, values, timeplusClient, pushInterval); err != nil {
 			return nil, err
 		} else {
 			return m, nil
@@ -209,8 +209,8 @@ func (m *Metrics) getCols() []string {
 	return cols
 }
 
-func (m *Metrics) toIngestPayload(obs []*Observation) timeplus.IngestPayload {
-	payload := timeplus.IngestPayload{
+func (m *Metrics) toIngestPayload(obs []*Observation) *timeplus.IngestPayload {
+	payload := &timeplus.IngestPayload{
 		Stream: m.streamName,
 		Data: timeplus.IngestData{
 			Columns: m.streamCols,

@@ -5,8 +5,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/timeplus-io/go-client/client"
 	"github.com/timeplus-io/go-client/metrics"
+	"github.com/timeplus-io/go-client/timeplus"
 )
 
 func main() {
@@ -14,12 +14,12 @@ func main() {
 	timeplusApiKey := os.Getenv("TIMEPLUS_API_KEY")
 	timeplusTenant := os.Getenv("TIMEPLUS_TENANT")
 
-	timeplusClient := client.NewCient(timeplusAddress, timeplusTenant, timeplusApiKey)
+	timeplusClient := timeplus.NewCient(timeplusAddress, timeplusTenant, timeplusApiKey)
 	var m *metrics.Metrics
-	m, err := metrics.CreateMetrics("cpu", []string{"a", "x", "g"}, []string{"value"}, timeplusClient)
+	m, err := metrics.CreateMetrics("cpu", []string{"a", "x", "g"}, []string{"value"}, timeplusClient, 1*time.Second)
 	if err != nil {
 		fmt.Printf("failed to create metric, %s\n", err)
-		m, err = metrics.GetMetrics("cpu", timeplusClient)
+		m, err = metrics.GetMetrics("cpu", timeplusClient, 1*time.Second)
 		if err != nil {
 			fmt.Printf("failed to get metric, %s\n", err)
 			return

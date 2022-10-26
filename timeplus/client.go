@@ -1,4 +1,4 @@
-package client
+package timeplus
 
 import (
 	"bytes"
@@ -230,21 +230,13 @@ func (s *TimeplusClient) ExistView(name string) bool {
 	return false
 }
 
-func (s *TimeplusClient) InsertData(data IngestPayload) error {
+func (s *TimeplusClient) InsertData(data *IngestPayload) error {
 	url := fmt.Sprintf("%s/streams/%s/ingest", s.baseUrl(), data.Stream)
 	_, _, err := utils.HttpRequestWithAPIKey(http.MethodPost, url, data.Data, s.client, s.apikey)
 	if err != nil {
 		return fmt.Errorf("failed to ingest data into stream %s: %w", data.Stream, err)
 	}
 	return nil
-}
-
-func toEvent(headers []ColumnDef, data []interface{}) map[string]interface{} {
-	event := make(map[string]interface{})
-	for index, header := range headers {
-		event[header.Name] = data[index]
-	}
-	return event
 }
 
 func (s *TimeplusClient) QueryStream(sql string) (rxgo.Observable, *QueryInfo, error) {
