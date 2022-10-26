@@ -17,10 +17,10 @@ func TestMetric(t *testing.T) {
 
 	timeplusClient := timeplus.NewCient(timeplusAddress, timeplusTenant, timeplusApiKey)
 	var m *metrics.Metrics
-	m, err := metrics.CreateMetrics("cpu", []string{"a", "x", "g"}, []string{"value"}, timeplusClient)
+	m, err := metrics.CreateMetrics("cpu", []string{"a", "x", "g"}, []string{"value"}, timeplusClient, 1*time.Second)
 	if err != nil {
 		fmt.Printf("failed to create metric, %s\n", err)
-		m, err = metrics.GetMetrics("cpu", timeplusClient)
+		m, err = metrics.GetMetrics("cpu", timeplusClient, 1*time.Second)
 		if err != nil {
 			fmt.Printf("failed to get metric, %s\n", err)
 			return
