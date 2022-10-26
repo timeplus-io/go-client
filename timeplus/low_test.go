@@ -1,19 +1,19 @@
-package client_test
+package timeplus_test
 
 import (
 	"fmt"
 	"os"
 	"testing"
 
-	"github.com/timeplus-io/go-client/client"
+	"github.com/timeplus-io/go-client/timeplus"
 )
 
 func TestLow(t *testing.T) {
 	timeplusAddress := os.Getenv("TIMEPLUS_LOW_LEVEL_ADDRESS")
-	timeplusClient := client.NewLowLevelCient(timeplusAddress)
+	timeplusClient := timeplus.NewLowLevelCient(timeplusAddress)
 
-	data := client.IngestPayload{
-		Data: client.IngestData{
+	data := timeplus.IngestPayload{
+		Data: timeplus.IngestData{
 			Columns: []string{"f1"},
 			Data:    [][]any{{1}, {2}},
 		},

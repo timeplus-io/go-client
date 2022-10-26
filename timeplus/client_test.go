@@ -1,4 +1,4 @@
-package client_test
+package timeplus_test
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/reactivex/rxgo/v2"
-	"github.com/timeplus-io/go-client/client"
+	"github.com/timeplus-io/go-client/timeplus"
 )
 
 func TestClient(t *testing.T) {
@@ -16,7 +16,7 @@ func TestClient(t *testing.T) {
 	timeplusApiKey := os.Getenv("TIMEPLUS_API_KEY")
 	timeplusTenant := os.Getenv("TIMEPLUS_TENANT")
 
-	timeplusClient := client.NewCient(timeplusAddress, timeplusTenant, timeplusApiKey)
+	timeplusClient := timeplus.NewCient(timeplusAddress, timeplusTenant, timeplusApiKey)
 	streamResult, queryResult, err := timeplusClient.QueryStream("select * from car_live_data")
 
 	if err != nil {

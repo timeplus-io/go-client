@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	timeplus "github.com/timeplus-io/go-client/client"
+	"github.com/timeplus-io/go-client/timeplus"
 )
 
 const DefaultTTL = "to_datetime(_tp_time) + INTERVAL 30 DAY"
@@ -209,8 +209,8 @@ func (m *Metrics) getCols() []string {
 	return cols
 }
 
-func (m *Metrics) toIngestPayload(obs []*Observation) timeplus.IngestPayload {
-	payload := timeplus.IngestPayload{
+func (m *Metrics) toIngestPayload(obs []*Observation) *timeplus.IngestPayload {
+	payload := &timeplus.IngestPayload{
 		Stream: m.streamName,
 		Data: timeplus.IngestData{
 			Columns: m.streamCols,
