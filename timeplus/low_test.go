@@ -12,7 +12,7 @@ func TestLow(t *testing.T) {
 	timeplusAddress := os.Getenv("TIMEPLUS_LOW_LEVEL_ADDRESS")
 	timeplusClient := timeplus.NewLowLevelCient(timeplusAddress)
 
-	data := timeplus.IngestPayload{
+	data := &timeplus.IngestPayload{
 		Data: timeplus.IngestData{
 			Columns: []string{"f1"},
 			Data:    [][]any{{1}, {2}},
