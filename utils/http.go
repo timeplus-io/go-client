@@ -87,7 +87,7 @@ func HttpRequestWithHeader(method string, url string, payload interface{}, clien
 	if err != nil {
 		return 0, nil, err
 	}
-	req.Header.Set("Content-Type", "application/json; charset=UTF-8")
+	req.Header.Set("Content-Type", "application/json")
 
 	for key := range headers {
 		req.Header.Set(key, headers[key])
