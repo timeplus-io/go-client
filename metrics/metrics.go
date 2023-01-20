@@ -12,6 +12,8 @@ const DefaultTTL = "to_datetime(_tp_time) + INTERVAL 30 DAY"
 const DefaultLogStoreRetentionBytes = 604800000
 const DefaultLogStoreRetentionMS = 1342177280
 
+const NumberOfInternalFields = 1
+
 type Metrics struct {
 	name       string
 	tagNames   []string
@@ -147,7 +149,7 @@ func (m *Metrics) getMetricStream() error {
 	m.streamDef = *stream
 	allCols := m.getCols()
 
-	m.streamCols = allCols[0 : len(allCols)-2]
+	m.streamCols = allCols[0 : len(allCols)-NumberOfInternalFields]
 	m.tagNames = m.getTagNames()
 	m.valueNames = m.getValueNames()
 	fmt.Printf("the stream cols is %v\n", m.streamCols)
@@ -156,7 +158,7 @@ func (m *Metrics) getMetricStream() error {
 
 func (m *Metrics) getTagNames() []string {
 	result := make([]string, 0)
-	cols := m.streamDef.Columns[4 : len(m.streamDef.Columns)-2]
+	cols := m.streamDef.Columns[4 : len(m.streamDef.Columns)-NumberOfInternalFields]
 	for _, col := range cols {
 		if col.Type == "string" {
 			result = append(result, col.Name)
@@ -167,7 +169,7 @@ func (m *Metrics) getTagNames() []string {
 
 func (m *Metrics) getValueNames() []string {
 	result := make([]string, 0)
-	cols := m.streamDef.Columns[4 : len(m.streamDef.Columns)-2]
+	cols := m.streamDef.Columns[4 : len(m.streamDef.Columns)-NumberOfInternalFields]
 	for _, col := range cols {
 		if col.Type == "float64" {
 			result = append(result, col.Name)
