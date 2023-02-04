@@ -48,3 +48,35 @@ func TestClient(t *testing.T) {
 
 	<-disposed
 }
+
+func TestV2Client(t *testing.T) {
+	timeplusAddress := os.Getenv("TIMEPLUS_ADDRESS")
+	timeplusApiKey := os.Getenv("TIMEPLUS_API_KEY")
+	timeplusTenant := os.Getenv("TIMEPLUS_TENANT")
+
+	timeplusClient := timeplus.NewCient(timeplusAddress, timeplusTenant, timeplusApiKey)
+	stream, err := timeplusClient.QueryV2Stream("select * from car_live_data where cid = 'c00122'")
+
+	if err != nil {
+		fmt.Printf("Query Failed! %s\n", err)
+	}
+
+	bufferStream := stream.Take(10)
+	disposed := bufferStream.ForEach(func(v interface{}) {
+		event := v.(*timeplus.ServerSideEvent)
+		fmt.Printf("got one event %v\n", event)
+	}, func(err error) {
+		fmt.Printf("failed to query %s", err)
+	}, func() {
+
+	})
+
+	_, cancel := stream.Connect(context.Background())
+
+	go func(cancel rxgo.Disposable) {
+		time.Sleep(5 * time.Second)
+		cancel()
+	}(cancel)
+
+	<-disposed
+}

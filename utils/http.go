@@ -110,3 +110,52 @@ func HttpRequestWithHeader(method string, url string, payload interface{}, clien
 
 	return res.StatusCode, resBody, nil
 }
+
+func SSEHttpRequestWithAPIKey(method string, url string, payload interface{}, config *HTTPClientConfig, key string) (*http.Response, error) {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.TLSClientConfig.InsecureSkipVerify = config.InsecureSkipVerify
+	t.MaxIdleConns = config.MaxIdleConns
+	t.MaxConnsPerHost = config.MaxConnsPerHost
+	t.MaxIdleConnsPerHost = config.MaxIdleConnsPerHost
+	t.TLSHandshakeTimeout = 0 * time.Second
+
+	client := &http.Client{
+		Transport: t,
+	}
+
+	headers := make(map[string]string)
+	headers["X-Api-key"] = key
+
+	return SSEHttpRequestWithHeader(method, url, payload, client, headers)
+}
+
+func SSEHttpRequestWithHeader(method string, url string, payload interface{}, client *http.Client, headers map[string]string) (*http.Response, error) {
+	var body io.Reader
+	if payload == nil {
+		body = nil
+	} else {
+		jsonPostValue, _ := json.Marshal(payload)
+		body = bytes.NewBuffer(jsonPostValue)
+	}
+
+	req, err := http.NewRequest(method, url, body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Cache-Control", "no-cache")
+	req.Header.Set("Accept", "text/event-stream")
+	req.Header.Set("Connection", "keep-alive")
+
+	for key := range headers {
+		req.Header.Set(key, headers[key])
+	}
+
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
+}
