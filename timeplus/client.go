@@ -1,6 +1,7 @@
 package timeplus
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -15,6 +16,18 @@ import (
 
 const TimeFormat = "2006-01-02 15:04:05.000"
 const APIVersion = "v1beta1"
+const APIV2Version = "v1beta2"
+
+type QueryEvent map[string]any
+type MetricsEvent map[string]any
+type DataEvent [][]any
+
+type ServerSideEvent struct {
+	EventType   string
+	QueryData   *QueryEvent
+	MetricsData *MetricsEvent
+	Data        *DataEvent
+}
 
 type ColumnDef struct {
 	Name    string `json:"name"`
@@ -129,6 +142,14 @@ func (s *TimeplusClient) baseUrl() string {
 		return fmt.Sprintf("%s/api/%s", s.address, APIVersion)
 	} else {
 		return fmt.Sprintf("%s/%s/api/%s", s.address, s.tenant, APIVersion)
+	}
+}
+
+func (s *TimeplusClient) baseUrlV2() string {
+	if len(s.tenant) == 0 {
+		return fmt.Sprintf("%s/api/%s", s.address, APIV2Version)
+	} else {
+		return fmt.Sprintf("%s/%s/api/%s", s.address, s.tenant, APIV2Version)
 	}
 }
 
@@ -292,4 +313,111 @@ func (s *TimeplusClient) QueryStream(sql string) (rxgo.Observable, *QueryInfo, e
 		}
 	}()
 	return resultStream, &queryResult, nil
+}
+
+func (s *TimeplusClient) QueryV2Stream(sql string) (rxgo.Observable, error) {
+	query := Query{
+		SQL:         sql,
+		Name:        "",
+		Description: "",
+		Tags:        []string{},
+	}
+
+	createQueryUrl := fmt.Sprintf("%s/queries", s.baseUrlV2())
+	config := utils.NewDefaultHTTPClientConfig()
+	res, err := utils.SSEHttpRequestWithAPIKey(http.MethodPost, createQueryUrl, query, config, s.apikey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create query : %w", err)
+	}
+
+	scanner := bufio.NewScanner(res.Body)
+	ch := make(chan rxgo.Item)
+	go func() {
+		for scanner.Scan() {
+			line := scanner.Text()
+			if len(line) == 0 {
+				continue
+			}
+
+			colonIndex := strings.Index(line, ":")
+			eventField := strings.TrimSpace(line[0:colonIndex])
+			eventData := strings.TrimSpace(line[colonIndex+1:])
+
+			if eventField == "event" {
+				scanner.Scan()
+				dataLine := scanner.Text()
+				colonIndex := strings.Index(dataLine, ":")
+				eventContentData := dataLine[colonIndex+1:]
+				if eventData == "query" {
+					var m QueryEvent
+					err := json.Unmarshal([]byte(eventContentData), &m)
+					if err != nil {
+						ch <- rxgo.Error(fmt.Errorf("invalide sse response,%s, %s", err, eventContentData))
+					}
+
+					event := &ServerSideEvent{
+						EventType: "query",
+						QueryData: &m,
+					}
+					ch <- rxgo.Of(event)
+				} else if eventData == "metrics" {
+					var m MetricsEvent
+					err := json.Unmarshal([]byte(eventContentData), &m)
+					if err != nil {
+						ch <- rxgo.Error(fmt.Errorf("invalide sse response,%s, %s", err, eventContentData))
+					}
+					event := &ServerSideEvent{
+						EventType:   "metrics",
+						MetricsData: &m,
+					}
+					ch <- rxgo.Of(event)
+				}
+			} else if eventField == "data" {
+
+				var m DataEvent
+				err := json.Unmarshal([]byte(eventData), &m)
+				if err != nil {
+					ch <- rxgo.Error(fmt.Errorf("invalide sse response, %s", line))
+				}
+				event := &ServerSideEvent{
+					EventType: "data",
+					Data:      &m,
+				}
+				ch <- rxgo.Of(event)
+			}
+		}
+
+		if err := scanner.Err(); err != nil {
+			ch <- rxgo.Error(err)
+		}
+		close(ch)
+		res.Body.Close()
+	}()
+
+	observable := rxgo.FromChannel(ch)
+	return observable, nil
+}
+
+func (e *ServerSideEvent) GetQuery() (*QueryEvent, error) {
+	if e.EventType != "query" {
+		return nil, fmt.Errorf("the event is not query")
+	}
+
+	return e.QueryData, nil
+}
+
+func (e *ServerSideEvent) GetMetrics() (*MetricsEvent, error) {
+	if e.EventType != "metrics" {
+		return nil, fmt.Errorf("the event is not metrics")
+	}
+
+	return e.MetricsData, nil
+}
+
+func (e *ServerSideEvent) GetData() (*DataEvent, error) {
+	if e.EventType != "data" {
+		return nil, fmt.Errorf("the event is not data")
+	}
+
+	return e.Data, nil
 }
