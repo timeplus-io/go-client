@@ -394,7 +394,7 @@ func (s *TimeplusClient) QueryV2Stream(sql string) (rxgo.Observable, error) {
 		res.Body.Close()
 	}()
 
-	observable := rxgo.FromChannel(ch)
+	observable := rxgo.FromChannel(ch, rxgo.WithPublishStrategy())
 	return observable, nil
 }
 
