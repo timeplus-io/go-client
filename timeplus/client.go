@@ -62,10 +62,16 @@ type IngestPayload struct {
 }
 
 type Query struct {
-	SQL         string   `json:"sql"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Tags        []string `json:"tags"`
+	SQL         string         `json:"sql"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Tags        []string       `json:"tags"`
+	Policy      BatchingPolicy `json:"batching_policy,omitempty"`
+}
+
+type BatchingPolicy struct {
+	Count  int `json:"count,omitempty"`
+	TimeMS int `json:"time_ms,omitempty"`
 }
 
 type QueryInfo struct {
