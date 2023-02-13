@@ -321,12 +321,16 @@ func (s *TimeplusClient) QueryStream(sql string) (rxgo.Observable, *QueryInfo, e
 	return resultStream, &queryResult, nil
 }
 
-func (s *TimeplusClient) QueryV2Stream(sql string) (rxgo.Observable, error) {
+func (s *TimeplusClient) QueryV2Stream(sql string, count int, bufferTime int) (rxgo.Observable, error) {
 	query := Query{
 		SQL:         sql,
 		Name:        "",
 		Description: "",
 		Tags:        []string{},
+		Policy: BatchingPolicy{
+			Count:  count,
+			TimeMS: bufferTime,
+		},
 	}
 
 	createQueryUrl := fmt.Sprintf("%s/queries", s.baseUrlV2())
