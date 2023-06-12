@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gorilla/websocket"
 	"github.com/mitchellh/mapstructure"
 	"github.com/reactivex/rxgo/v2"
 
@@ -17,7 +16,6 @@ import (
 )
 
 const TimeFormat = "2006-01-02 15:04:05.000"
-const APIV1Version = "v1beta1"
 const APIVersion = "v1beta2"
 
 type metricsEvent map[string]any
@@ -153,14 +151,6 @@ func (s *TimeplusClient) baseUrl() string {
 	}
 }
 
-func (s *TimeplusClient) baseUrlV1() string {
-	if len(s.tenant) == 0 {
-		return fmt.Sprintf("%s/api/%s", s.address, APIV1Version)
-	} else {
-		return fmt.Sprintf("%s/%s/api/%s", s.address, s.tenant, APIV1Version)
-	}
-}
-
 func (s *TimeplusClient) CreateStream(streamDef StreamDef) error {
 	url := fmt.Sprintf("%s/streams", s.baseUrl())
 	_, _, err := utils.HttpRequestWithAPIKey(http.MethodPost, url, streamDef, s.client, s.apikey)
@@ -266,61 +256,6 @@ func (s *TimeplusClient) InsertData(data *IngestPayload) error {
 		return fmt.Errorf("failed to ingest data into stream %s: %w", data.Stream, err)
 	}
 	return nil
-}
-
-func (s *TimeplusClient) QueryStreamV1(sql string) (rxgo.Observable, *QueryInfo, error) {
-	query := Query{
-		SQL:         sql,
-		Name:        "",
-		Description: "",
-		Tags:        []string{},
-	}
-
-	createQueryUrl := fmt.Sprintf("%s/queries", s.baseUrlV1())
-	_, respBody, err := utils.HttpRequestWithAPIKey(http.MethodPost, createQueryUrl, query, s.client, s.apikey)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create query : %w", err)
-	}
-
-	var queryResult QueryInfo
-	json.NewDecoder(bytes.NewBuffer(respBody)).Decode(&queryResult)
-
-	var wsUrl string
-	if len(s.tenant) == 0 {
-		wsUrl = fmt.Sprintf("%s/ws/queries/%s", s.address, queryResult.ID)
-	} else {
-		wsUrl = fmt.Sprintf("%s/%s/ws/queries/%s", s.address, s.tenant, queryResult.ID)
-	}
-	wsUrl = strings.Replace(wsUrl, "http", "ws", 1)
-
-	requestHeader := http.Header{}
-	requestHeader.Set("X-Api-Key", s.apikey)
-
-	c, _, err := websocket.DefaultDialer.Dial(wsUrl, requestHeader)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to connect to websocket %s : %w", wsUrl, err)
-	}
-
-	streamChannel := make(chan rxgo.Item)
-	resultStream := rxgo.FromChannel(streamChannel, rxgo.WithPublishStrategy())
-
-	go func() {
-		defer close(streamChannel)
-		defer c.Close()
-
-		for {
-			_, message, err := c.ReadMessage()
-			if err != nil {
-				return
-			}
-			var messagePayload []interface{}
-			json.NewDecoder(bytes.NewBuffer(message)).Decode(&messagePayload)
-			//event := toEvent(queryResult.Result.Header, messagePayload)
-			event := messagePayload
-			streamChannel <- rxgo.Of(event)
-		}
-	}()
-	return resultStream, &queryResult, nil
 }
 
 func (s *TimeplusClient) queryStreamV2(sql string, batchCount int, batchBufferTime int) (rxgo.Observable, error) {
