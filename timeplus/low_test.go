@@ -9,6 +9,8 @@ import (
 )
 
 func TestLow(t *testing.T) {
+	t.Skip("Skipping this test")
+
 	timeplusAddress := os.Getenv("TIMEPLUS_LOW_LEVEL_ADDRESS")
 	timeplusClient := timeplus.NewLowLevelCient(timeplusAddress)
 

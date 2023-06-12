@@ -3,20 +3,22 @@ package timeplus
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/gorilla/websocket"
+	"github.com/mitchellh/mapstructure"
 	"github.com/reactivex/rxgo/v2"
 
 	"github.com/timeplus-io/go-client/utils"
 )
 
 const TimeFormat = "2006-01-02 15:04:05.000"
-const APIVersion = "v1beta1"
-const APIV2Version = "v1beta2"
+const APIV1Version = "v1beta1"
+const APIVersion = "v1beta2"
 
 type QueryEvent map[string]any
 type MetricsEvent map[string]any
@@ -151,11 +153,11 @@ func (s *TimeplusClient) baseUrl() string {
 	}
 }
 
-func (s *TimeplusClient) baseUrlV2() string {
+func (s *TimeplusClient) baseUrlV1() string {
 	if len(s.tenant) == 0 {
-		return fmt.Sprintf("%s/api/%s", s.address, APIV2Version)
+		return fmt.Sprintf("%s/api/%s", s.address, APIV1Version)
 	} else {
-		return fmt.Sprintf("%s/%s/api/%s", s.address, s.tenant, APIV2Version)
+		return fmt.Sprintf("%s/%s/api/%s", s.address, s.tenant, APIV1Version)
 	}
 }
 
@@ -266,7 +268,7 @@ func (s *TimeplusClient) InsertData(data *IngestPayload) error {
 	return nil
 }
 
-func (s *TimeplusClient) QueryStream(sql string) (rxgo.Observable, *QueryInfo, error) {
+func (s *TimeplusClient) QueryStreamV1(sql string) (rxgo.Observable, *QueryInfo, error) {
 	query := Query{
 		SQL:         sql,
 		Name:        "",
@@ -274,7 +276,7 @@ func (s *TimeplusClient) QueryStream(sql string) (rxgo.Observable, *QueryInfo, e
 		Tags:        []string{},
 	}
 
-	createQueryUrl := fmt.Sprintf("%s/queries", s.baseUrl())
+	createQueryUrl := fmt.Sprintf("%s/queries", s.baseUrlV1())
 	_, respBody, err := utils.HttpRequestWithAPIKey(http.MethodPost, createQueryUrl, query, s.client, s.apikey)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create query : %w", err)
@@ -321,19 +323,19 @@ func (s *TimeplusClient) QueryStream(sql string) (rxgo.Observable, *QueryInfo, e
 	return resultStream, &queryResult, nil
 }
 
-func (s *TimeplusClient) QueryV2Stream(sql string, count int, bufferTime int) (rxgo.Observable, error) {
+func (s *TimeplusClient) queryStreamV2(sql string, batchCount int, batchBufferTime int) (rxgo.Observable, error) {
 	query := Query{
 		SQL:         sql,
 		Name:        "",
 		Description: "",
 		Tags:        []string{},
 		Policy: BatchingPolicy{
-			Count:  count,
-			TimeMS: bufferTime,
+			Count:  batchCount,
+			TimeMS: batchBufferTime,
 		},
 	}
 
-	createQueryUrl := fmt.Sprintf("%s/queries", s.baseUrlV2())
+	createQueryUrl := fmt.Sprintf("%s/queries", s.baseUrl())
 	config := utils.NewDefaultHTTPClientConfig()
 	res, err := utils.SSEHttpRequestWithAPIKey(http.MethodPost, createQueryUrl, query, config, s.apikey)
 	if err != nil {
@@ -382,8 +384,7 @@ func (s *TimeplusClient) QueryV2Stream(sql string, count int, bufferTime int) (r
 					}
 					ch <- rxgo.Of(event)
 				}
-			} else if eventField == "data" {
-
+			} else {
 				var m DataEvent
 				err := json.Unmarshal([]byte(eventData), &m)
 				if err != nil {
@@ -404,8 +405,58 @@ func (s *TimeplusClient) QueryV2Stream(sql string, count int, bufferTime int) (r
 		res.Body.Close()
 	}()
 
-	observable := rxgo.FromChannel(ch, rxgo.WithPublishStrategy())
+	observable := rxgo.FromChannel(ch)
 	return observable, nil
+}
+
+func (s *TimeplusClient) QueryStream(sql string, batchCount int, batchBufferTime int) (rxgo.Observable, *QueryInfo, error) {
+	stream, err := s.queryStreamV2(sql, batchCount, batchBufferTime)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	headerEvent := stream.Take(1)
+	contentStream := stream.Skip(1)
+	var header *ServerSideEvent
+	sub := headerEvent.ForEach(func(v interface{}) {
+		event := v.(*ServerSideEvent)
+		fmt.Printf("got header event %v\n", event)
+		header = event
+	}, func(err error) {
+		fmt.Printf("failed to query %s", err)
+	}, func() {
+
+	})
+
+	<-sub
+
+	dataStream := contentStream.Filter(func(v interface{}) bool {
+		// Filter operation
+		event := v.(*ServerSideEvent)
+		return event.EventType == "data"
+	}).Map(func(_ context.Context, v interface{}) (interface{}, error) {
+		// Filter operation
+		event := v.(*ServerSideEvent)
+		if data, err := event.GetData(); err != nil {
+			return nil, err
+		} else {
+			return data, nil
+		}
+	})
+
+	queryEvent, err := header.GetQuery()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var queryInfo QueryInfo
+	err = mapstructure.Decode(queryEvent, &queryInfo)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return dataStream, &queryInfo, nil
 }
 
 func (e *ServerSideEvent) GetQuery() (*QueryEvent, error) {
