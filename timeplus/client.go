@@ -20,15 +20,16 @@ const TimeFormat = "2006-01-02 15:04:05.000"
 const APIV1Version = "v1beta1"
 const APIVersion = "v1beta2"
 
-type QueryEvent map[string]any
-type MetricsEvent map[string]any
+type queryEvent map[string]any
+type metricsEvent map[string]any
 type DataEvent [][]any
 
-type ServerSideEvent struct {
-	EventType   string
-	QueryData   *QueryEvent
-	MetricsData *MetricsEvent
-	Data        *DataEvent
+// internal struct for SSE event
+type serverSentEvent struct {
+	eventType   string
+	queryData   *queryEvent
+	metricsData *metricsEvent
+	data        *DataEvent
 }
 
 type ColumnDef struct {
@@ -361,26 +362,26 @@ func (s *TimeplusClient) queryStreamV2(sql string, batchCount int, batchBufferTi
 				colonIndex := strings.Index(dataLine, ":")
 				eventContentData := dataLine[colonIndex+1:]
 				if eventData == "query" {
-					var m QueryEvent
+					var m queryEvent
 					err := json.Unmarshal([]byte(eventContentData), &m)
 					if err != nil {
 						ch <- rxgo.Error(fmt.Errorf("invalide sse response,%s, %s", err, eventContentData))
 					}
 
-					event := &ServerSideEvent{
-						EventType: "query",
-						QueryData: &m,
+					event := &serverSentEvent{
+						eventType: "query",
+						queryData: &m,
 					}
 					ch <- rxgo.Of(event)
 				} else if eventData == "metrics" {
-					var m MetricsEvent
+					var m metricsEvent
 					err := json.Unmarshal([]byte(eventContentData), &m)
 					if err != nil {
 						ch <- rxgo.Error(fmt.Errorf("invalide sse response,%s, %s", err, eventContentData))
 					}
-					event := &ServerSideEvent{
-						EventType:   "metrics",
-						MetricsData: &m,
+					event := &serverSentEvent{
+						eventType:   "metrics",
+						metricsData: &m,
 					}
 					ch <- rxgo.Of(event)
 				}
@@ -390,9 +391,9 @@ func (s *TimeplusClient) queryStreamV2(sql string, batchCount int, batchBufferTi
 				if err != nil {
 					ch <- rxgo.Error(fmt.Errorf("invalide sse response, %s", line))
 				}
-				event := &ServerSideEvent{
-					EventType: "data",
-					Data:      &m,
+				event := &serverSentEvent{
+					eventType: "data",
+					data:      &m,
 				}
 				ch <- rxgo.Of(event)
 			}
@@ -418,9 +419,9 @@ func (s *TimeplusClient) QueryStream(sql string, batchCount int, batchBufferTime
 
 	headerEvent := stream.Take(1)
 	contentStream := stream.Skip(1)
-	var header *ServerSideEvent
+	var header *serverSentEvent
 	sub := headerEvent.ForEach(func(v interface{}) {
-		event := v.(*ServerSideEvent)
+		event := v.(*serverSentEvent)
 		fmt.Printf("got header event %v\n", event)
 		header = event
 	}, func(err error) {
@@ -433,11 +434,11 @@ func (s *TimeplusClient) QueryStream(sql string, batchCount int, batchBufferTime
 
 	dataStream := contentStream.Filter(func(v interface{}) bool {
 		// Filter operation
-		event := v.(*ServerSideEvent)
-		return event.EventType == "data"
+		event := v.(*serverSentEvent)
+		return event.eventType == "data"
 	}).Map(func(_ context.Context, v interface{}) (interface{}, error) {
 		// Filter operation
-		event := v.(*ServerSideEvent)
+		event := v.(*serverSentEvent)
 		if data, err := event.GetData(); err != nil {
 			return nil, err
 		} else {
@@ -459,26 +460,26 @@ func (s *TimeplusClient) QueryStream(sql string, batchCount int, batchBufferTime
 	return dataStream, &queryInfo, nil
 }
 
-func (e *ServerSideEvent) GetQuery() (*QueryEvent, error) {
-	if e.EventType != "query" {
+func (e *serverSentEvent) GetQuery() (*queryEvent, error) {
+	if e.eventType != "query" {
 		return nil, fmt.Errorf("the event is not query")
 	}
 
-	return e.QueryData, nil
+	return e.queryData, nil
 }
 
-func (e *ServerSideEvent) GetMetrics() (*MetricsEvent, error) {
-	if e.EventType != "metrics" {
+func (e *serverSentEvent) GetMetrics() (*metricsEvent, error) {
+	if e.eventType != "metrics" {
 		return nil, fmt.Errorf("the event is not metrics")
 	}
 
-	return e.MetricsData, nil
+	return e.metricsData, nil
 }
 
-func (e *ServerSideEvent) GetData() (*DataEvent, error) {
-	if e.EventType != "data" {
+func (e *serverSentEvent) GetData() (*DataEvent, error) {
+	if e.eventType != "data" {
 		return nil, fmt.Errorf("the event is not data")
 	}
 
-	return e.Data, nil
+	return e.data, nil
 }
