@@ -20,14 +20,13 @@ const TimeFormat = "2006-01-02 15:04:05.000"
 const APIV1Version = "v1beta1"
 const APIVersion = "v1beta2"
 
-type queryEvent map[string]any
 type metricsEvent map[string]any
 type DataEvent [][]any
 
 // internal struct for SSE event
 type serverSentEvent struct {
 	eventType   string
-	queryData   *queryEvent
+	queryData   *map[string]any
 	metricsData *metricsEvent
 	data        *DataEvent
 }
@@ -362,7 +361,7 @@ func (s *TimeplusClient) queryStreamV2(sql string, batchCount int, batchBufferTi
 				colonIndex := strings.Index(dataLine, ":")
 				eventContentData := dataLine[colonIndex+1:]
 				if eventData == "query" {
-					var m queryEvent
+					var m map[string]any
 					err := json.Unmarshal([]byte(eventContentData), &m)
 					if err != nil {
 						ch <- rxgo.Error(fmt.Errorf("invalide sse response,%s, %s", err, eventContentData))
@@ -392,7 +391,7 @@ func (s *TimeplusClient) queryStreamV2(sql string, batchCount int, batchBufferTi
 					ch <- rxgo.Error(fmt.Errorf("invalide sse response, %s", line))
 				}
 				event := &serverSentEvent{
-					eventType: "data",
+					eventType: "",
 					data:      &m,
 				}
 				ch <- rxgo.Of(event)
@@ -410,7 +409,7 @@ func (s *TimeplusClient) queryStreamV2(sql string, batchCount int, batchBufferTi
 	return observable, nil
 }
 
-func (s *TimeplusClient) QueryStream(sql string, batchCount int, batchBufferTime int) (rxgo.Observable, *QueryInfo, error) {
+func (s *TimeplusClient) QueryStream(sql string, batchCount int, batchBufferTime int) (rxgo.Observable, *map[string]any, error) {
 	stream, err := s.queryStreamV2(sql, batchCount, batchBufferTime)
 
 	if err != nil {
@@ -422,20 +421,18 @@ func (s *TimeplusClient) QueryStream(sql string, batchCount int, batchBufferTime
 	var header *serverSentEvent
 	sub := headerEvent.ForEach(func(v interface{}) {
 		event := v.(*serverSentEvent)
-		fmt.Printf("got header event %v\n", event)
 		header = event
 	}, func(err error) {
 		fmt.Printf("failed to query %s", err)
 	}, func() {
 
 	})
-
 	<-sub
 
 	dataStream := contentStream.Filter(func(v interface{}) bool {
 		// Filter operation
 		event := v.(*serverSentEvent)
-		return event.eventType == "data"
+		return event.eventType == ""
 	}).Map(func(_ context.Context, v interface{}) (interface{}, error) {
 		// Filter operation
 		event := v.(*serverSentEvent)
@@ -451,16 +448,30 @@ func (s *TimeplusClient) QueryStream(sql string, batchCount int, batchBufferTime
 		return nil, nil, err
 	}
 
+	// var queryInfo QueryInfo
+	// err = mapstructure.Decode(queryEvent, &queryInfo)
+	// if err != nil {
+	// 	return nil, nil, err
+	// }
+
+	return dataStream, queryEvent, nil
+}
+
+func (s *TimeplusClient) _QueryStream(sql string, batchCount int, batchBufferTime int) (rxgo.Observable, *QueryInfo, error) {
+	dataStream, queryEvent, err := s.QueryStream(sql, batchCount, batchBufferTime)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	var queryInfo QueryInfo
 	err = mapstructure.Decode(queryEvent, &queryInfo)
 	if err != nil {
 		return nil, nil, err
 	}
-
 	return dataStream, &queryInfo, nil
 }
 
-func (e *serverSentEvent) GetQuery() (*queryEvent, error) {
+func (e *serverSentEvent) GetQuery() (*map[string]any, error) {
 	if e.eventType != "query" {
 		return nil, fmt.Errorf("the event is not query")
 	}
@@ -477,7 +488,7 @@ func (e *serverSentEvent) GetMetrics() (*metricsEvent, error) {
 }
 
 func (e *serverSentEvent) GetData() (*DataEvent, error) {
-	if e.eventType != "data" {
+	if e.eventType != "" {
 		return nil, fmt.Errorf("the event is not data")
 	}
 
