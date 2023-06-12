@@ -365,11 +365,9 @@ func (s *TimeplusClient) QueryStream(sql string, batchCount int, batchBufferTime
 	<-sub
 
 	dataStream := contentStream.Filter(func(v interface{}) bool {
-		// Filter operation
 		event := v.(*serverSentEvent)
 		return event.eventType == ""
 	}).Map(func(_ context.Context, v interface{}) (interface{}, error) {
-		// Filter operation
 		event := v.(*serverSentEvent)
 		if data, err := event.GetData(); err != nil {
 			return nil, err
@@ -383,16 +381,10 @@ func (s *TimeplusClient) QueryStream(sql string, batchCount int, batchBufferTime
 		return nil, nil, err
 	}
 
-	// var queryInfo QueryInfo
-	// err = mapstructure.Decode(queryEvent, &queryInfo)
-	// if err != nil {
-	// 	return nil, nil, err
-	// }
-
 	return dataStream, queryEvent, nil
 }
 
-func (s *TimeplusClient) _QueryStream(sql string, batchCount int, batchBufferTime int) (rxgo.Observable, *QueryInfo, error) {
+func (s *TimeplusClient) QueryStreamWithHeader(sql string, batchCount int, batchBufferTime int) (rxgo.Observable, []ColumnDef, error) {
 	dataStream, queryEvent, err := s.QueryStream(sql, batchCount, batchBufferTime)
 	if err != nil {
 		return nil, nil, err
@@ -403,7 +395,7 @@ func (s *TimeplusClient) _QueryStream(sql string, batchCount int, batchBufferTim
 	if err != nil {
 		return nil, nil, err
 	}
-	return dataStream, &queryInfo, nil
+	return dataStream, queryInfo.Result.Header, nil
 }
 
 func (e *serverSentEvent) GetQuery() (*map[string]any, error) {
