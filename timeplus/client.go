@@ -278,6 +278,8 @@ func (s *TimeplusClient) queryStreamV2(sql string, batchCount int, batchBufferTi
 	}
 
 	scanner := bufio.NewScanner(res.Body)
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 1024*1024)
 	ch := make(chan rxgo.Item)
 	canceled := false
 	go func() {
