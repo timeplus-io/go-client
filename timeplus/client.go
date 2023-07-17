@@ -258,6 +258,24 @@ func (s *TimeplusClient) InsertData(data *IngestPayload) error {
 	return nil
 }
 
+func readCompleteLine(reader *bufio.Reader) (string, error) {
+	var line []byte
+	var isPrefix bool
+	var err error
+
+	isPrefix = true
+	for isPrefix {
+		var chunk []byte
+		chunk, isPrefix, err = reader.ReadLine()
+		if err != nil {
+			return "", err
+		}
+		line = append(line, chunk...)
+	}
+
+	return string(line), nil
+}
+
 func (s *TimeplusClient) queryStreamV2(sql string, batchCount int, batchBufferTime int) (rxgo.Observable, func(), error) {
 	query := Query{
 		SQL:         sql,
@@ -277,19 +295,27 @@ func (s *TimeplusClient) queryStreamV2(sql string, batchCount int, batchBufferTi
 		return nil, nil, fmt.Errorf("failed to create query : %w", err)
 	}
 
-	scanner := bufio.NewScanner(res.Body)
-	buf := make([]byte, 0, 64*1024)
-	scanner.Buffer(buf, 1024*1024)
+	// scanner := bufio.NewScanner(res.Body)
+	// buf := make([]byte, 0, 64*1024)
+	// scanner.Buffer(buf, 1024*1024)
+	reader := bufio.NewReader(res.Body)
 	ch := make(chan rxgo.Item)
 	canceled := false
 	go func() {
 		defer res.Body.Close()
 
-		for scanner.Scan() {
+		for {
 			if canceled {
 				break
 			}
-			line := scanner.Text()
+
+			line, err := readCompleteLine(reader)
+
+			if err != nil {
+				ch <- rxgo.Error(err)
+				continue
+			}
+
 			if len(line) == 0 {
 				continue
 			}
@@ -299,8 +325,12 @@ func (s *TimeplusClient) queryStreamV2(sql string, batchCount int, batchBufferTi
 			eventData := strings.TrimSpace(line[colonIndex+1:])
 
 			if eventField == "event" {
-				scanner.Scan()
-				dataLine := scanner.Text()
+				dataLine, err := readCompleteLine(reader)
+				if err != nil {
+					ch <- rxgo.Error(err)
+					continue
+				}
+
 				colonIndex := strings.Index(dataLine, ":")
 				eventContentData := dataLine[colonIndex+1:]
 				if eventData == "query" {
@@ -341,9 +371,9 @@ func (s *TimeplusClient) queryStreamV2(sql string, batchCount int, batchBufferTi
 			}
 		}
 
-		if err := scanner.Err(); err != nil {
-			ch <- rxgo.Error(err)
-		}
+		// if err := scanner.Err(); err != nil {
+		// 	ch <- rxgo.Error(err)
+		// }
 
 		if !canceled {
 			close(ch)
