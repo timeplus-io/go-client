@@ -295,9 +295,6 @@ func (s *TimeplusClient) queryStreamV2(sql string, batchCount int, batchBufferTi
 		return nil, nil, fmt.Errorf("failed to create query : %w", err)
 	}
 
-	// scanner := bufio.NewScanner(res.Body)
-	// buf := make([]byte, 0, 64*1024)
-	// scanner.Buffer(buf, 1024*1024)
 	reader := bufio.NewReader(res.Body)
 	ch := make(chan rxgo.Item)
 	canceled := false
@@ -370,10 +367,6 @@ func (s *TimeplusClient) queryStreamV2(sql string, batchCount int, batchBufferTi
 				ch <- rxgo.Of(event)
 			}
 		}
-
-		// if err := scanner.Err(); err != nil {
-		// 	ch <- rxgo.Error(err)
-		// }
 
 		if !canceled {
 			close(ch)
