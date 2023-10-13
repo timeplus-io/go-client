@@ -276,7 +276,7 @@ func readCompleteLine(reader *bufio.Reader) (string, error) {
 	return string(line), nil
 }
 
-func (s *TimeplusClient) queryStreamV2(sql string, batchCount int, batchBufferTime int) (rxgo.Observable, func(), error) {
+func (s *TimeplusClient) queryStreamV2(sql string, batchCount int, batchBufferTime int) (*map[string]interface{}, rxgo.Observable, func(), error) {
 	query := Query{
 		SQL:         sql,
 		Name:        "",
@@ -292,20 +292,48 @@ func (s *TimeplusClient) queryStreamV2(sql string, batchCount int, batchBufferTi
 	config := utils.NewDefaultHTTPClientConfig()
 	res, err := utils.SSEHttpRequestWithAPIKey(http.MethodPost, createQueryUrl, query, config, s.apikey)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create query : %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to create query : %w", err)
 	}
 
 	reader := bufio.NewReader(res.Body)
 	ch := make(chan rxgo.Item)
-	canceled := false
+	var header map[string]interface{}
+
+	// Read the header here
+	for {
+		line, err := readCompleteLine(reader)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to retrieve query header: %w", err)
+		}
+		if len(line) == 0 {
+			continue
+		}
+		colonIndex := strings.Index(line, ":")
+		eventField := strings.TrimSpace(line[0:colonIndex])
+		eventData := strings.TrimSpace(line[colonIndex+1:])
+
+		if eventField == "event" {
+			dataLine, err := readCompleteLine(reader)
+			if err != nil {
+				return nil, nil, nil, fmt.Errorf("failed to retrieve query header: %w", err)
+			}
+			colonIndex := strings.Index(dataLine, ":")
+			eventContentData := dataLine[colonIndex+1:]
+			if eventData == "query" {
+				err := json.Unmarshal([]byte(eventContentData), &header)
+				if err != nil {
+					return nil, nil, nil, fmt.Errorf("failed to unmarshall query header: %w", err)
+				}
+				break
+			}
+		}
+	}
+
+	// Read the rest
 	go func() {
 		defer res.Body.Close()
 
 		for {
-			if canceled {
-				break
-			}
-
 			line, err := readCompleteLine(reader)
 
 			if err != nil {
@@ -320,39 +348,11 @@ func (s *TimeplusClient) queryStreamV2(sql string, batchCount int, batchBufferTi
 			colonIndex := strings.Index(line, ":")
 			eventField := strings.TrimSpace(line[0:colonIndex])
 			eventData := strings.TrimSpace(line[colonIndex+1:])
-
 			if eventField == "event" {
-				dataLine, err := readCompleteLine(reader)
+				_, err := readCompleteLine(reader)
 				if err != nil {
 					ch <- rxgo.Error(err)
 					continue
-				}
-
-				colonIndex := strings.Index(dataLine, ":")
-				eventContentData := dataLine[colonIndex+1:]
-				if eventData == "query" {
-					var m map[string]any
-					err := json.Unmarshal([]byte(eventContentData), &m)
-					if err != nil {
-						ch <- rxgo.Error(fmt.Errorf("invalide sse response,%s, %s", err, eventContentData))
-					}
-
-					event := &serverSentEvent{
-						eventType: "query",
-						queryData: &m,
-					}
-					ch <- rxgo.Of(event)
-				} else if eventData == "metrics" {
-					var m metricsEvent
-					err := json.Unmarshal([]byte(eventContentData), &m)
-					if err != nil {
-						ch <- rxgo.Error(fmt.Errorf("invalide sse response,%s, %s", err, eventContentData))
-					}
-					event := &serverSentEvent{
-						eventType:   "metrics",
-						metricsData: &m,
-					}
-					ch <- rxgo.Of(event)
 				}
 			} else {
 				var m DataEvent
@@ -360,67 +360,22 @@ func (s *TimeplusClient) queryStreamV2(sql string, batchCount int, batchBufferTi
 				if err != nil {
 					ch <- rxgo.Error(fmt.Errorf("invalide sse response, %s", line))
 				}
-				event := &serverSentEvent{
-					eventType: "",
-					data:      &m,
-				}
-				ch <- rxgo.Of(event)
+				ch <- rxgo.Of(&m)
 			}
-		}
-
-		if !canceled {
-			close(ch)
 		}
 	}()
 
-	observable := rxgo.FromChannel(ch)
-	// workaround the cancel of hot obserable stream
-	cancel := func() {
-		canceled = true
-		close(ch)
-	}
-	return observable, cancel, nil
+	observable := rxgo.FromChannel(ch, rxgo.WithPublishStrategy())
+	_, cancel := observable.Connect(context.Background())
+	return &header, observable, cancel, nil
 }
 
 func (s *TimeplusClient) QueryStream(sql string, batchCount int, batchBufferTime int) (rxgo.Observable, func(), *map[string]any, error) {
-	stream, cancel, err := s.queryStreamV2(sql, batchCount, batchBufferTime)
-
+	header, stream, cancel, err := s.queryStreamV2(sql, batchCount, batchBufferTime)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-
-	headerEvent := stream.Take(1)
-	contentStream := stream.Skip(1)
-	var header *serverSentEvent
-	sub := headerEvent.ForEach(func(v interface{}) {
-		event := v.(*serverSentEvent)
-		header = event
-	}, func(err error) {
-		fmt.Printf("failed to query %s", err)
-	}, func() {
-
-	})
-
-	<-sub
-
-	dataStream := contentStream.Filter(func(v interface{}) bool {
-		event := v.(*serverSentEvent)
-		return event.eventType == ""
-	}).Map(func(_ context.Context, v interface{}) (interface{}, error) {
-		event := v.(*serverSentEvent)
-		if data, err := event.GetData(); err != nil {
-			return nil, err
-		} else {
-			return data, nil
-		}
-	})
-
-	queryEvent, err := header.GetQuery()
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	return dataStream, cancel, queryEvent, nil
+	return stream, cancel, header, nil
 }
 
 func (s *TimeplusClient) QueryStreamWithHeader(sql string, batchCount int, batchBufferTime int) (rxgo.Observable, func(), []ColumnDef, error) {

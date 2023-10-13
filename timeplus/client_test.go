@@ -24,7 +24,7 @@ func TestClient(t *testing.T) {
 
 	fmt.Printf("query result header is, %v\n", ((*queryResult)["result"]).(map[string]any)["header"])
 
-	bufferStream := stream.Take(10)
+	bufferStream := stream
 	disposed := bufferStream.ForEach(func(v interface{}) {
 		event := v.(*timeplus.DataEvent)
 		fmt.Printf("got one event %v\n", event)
