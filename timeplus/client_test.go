@@ -22,7 +22,7 @@ func TestClient(t *testing.T) {
 		os.Exit(0)
 	}
 
-	fmt.Printf("query result header is, %v\n", ((*queryResult)["result"]).(map[string]any)["header"])
+	fmt.Printf("query result header is, %v\n", queryResult.Result.Header)
 
 	bufferStream := stream
 	disposed := bufferStream.ForEach(func(v interface{}) {

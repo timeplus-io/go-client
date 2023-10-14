@@ -18,16 +18,7 @@ import (
 const TimeFormat = "2006-01-02 15:04:05.000"
 const APIVersion = "v1beta2"
 
-type metricsEvent map[string]any
 type DataEvent [][]any
-
-// internal struct for SSE event
-type serverSentEvent struct {
-	eventType   string
-	queryData   *map[string]any
-	metricsData *metricsEvent
-	data        *DataEvent
-}
 
 type ColumnDef struct {
 	Name    string `json:"name"`
@@ -276,7 +267,7 @@ func readCompleteLine(reader *bufio.Reader) (string, error) {
 	return string(line), nil
 }
 
-func (s *TimeplusClient) queryStreamV2(sql string, batchCount int, batchBufferTime int) (*map[string]interface{}, rxgo.Observable, func(), error) {
+func (s *TimeplusClient) queryStreamV2(sql string, batchCount int, batchBufferTime int) (*QueryInfo, rxgo.Observable, func(), error) {
 	query := Query{
 		SQL:         sql,
 		Name:        "",
@@ -297,7 +288,7 @@ func (s *TimeplusClient) queryStreamV2(sql string, batchCount int, batchBufferTi
 
 	reader := bufio.NewReader(res.Body)
 	ch := make(chan rxgo.Item)
-	var header map[string]interface{}
+	var header QueryInfo
 
 	// Read the header here
 	for {
@@ -370,7 +361,7 @@ func (s *TimeplusClient) queryStreamV2(sql string, batchCount int, batchBufferTi
 	return &header, observable, cancel, nil
 }
 
-func (s *TimeplusClient) QueryStream(sql string, batchCount int, batchBufferTime int) (rxgo.Observable, func(), *map[string]any, error) {
+func (s *TimeplusClient) QueryStream(sql string, batchCount int, batchBufferTime int) (rxgo.Observable, func(), *QueryInfo, error) {
 	header, stream, cancel, err := s.queryStreamV2(sql, batchCount, batchBufferTime)
 	if err != nil {
 		return nil, nil, nil, err
@@ -390,27 +381,4 @@ func (s *TimeplusClient) QueryStreamWithHeader(sql string, batchCount int, batch
 		return nil, nil, nil, err
 	}
 	return dataStream, cancel, queryInfo.Result.Header, nil
-}
-
-func (e *serverSentEvent) GetQuery() (*map[string]any, error) {
-	if e.eventType != "query" {
-		return nil, fmt.Errorf("the event is not query")
-	}
-
-	return e.queryData, nil
-}
-
-func (e *serverSentEvent) GetMetrics() (*metricsEvent, error) {
-	if e.eventType != "metrics" {
-		return nil, fmt.Errorf("the event is not metrics")
-	}
-
-	return e.metricsData, nil
-}
-
-func (e *serverSentEvent) GetData() (*DataEvent, error) {
-	if e.eventType != "" {
-		return nil, fmt.Errorf("the event is not data")
-	}
-	return e.data, nil
 }
