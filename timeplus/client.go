@@ -288,7 +288,6 @@ func (s *TimeplusClient) queryStreamV2(sql string, batchCount int, batchBufferTi
 	config := utils.NewDefaultHTTPClientConfig()
 	res, err := utils.SSEHttpRequestWithAPIKey(http.MethodPost, createQueryUrl, query, config, s.apikey)
 	if err != nil {
-		res.Body.Close()
 		return nil, fmt.Errorf("failed to create query : %w", err)
 	}
 
@@ -305,27 +304,28 @@ func (s *TimeplusClient) queryStreamV2(sql string, batchCount int, batchBufferTi
 	colonIndex := strings.Index(line, ":")
 	eventField := strings.TrimSpace(line[0:colonIndex])
 	eventData := strings.TrimSpace(line[colonIndex+1:])
-	if eventField == "event" {
-		dataLine, err := readCompleteLine(reader)
+
+	if eventField != "event" {
+		res.Body.Close()
+		return nil, fmt.Errorf("the first result from sse has to be a event: %w", err)
+	}
+
+	dataLine, err := readCompleteLine(reader)
+	if err != nil {
+		res.Body.Close()
+		return nil, fmt.Errorf("failed to retrieve query metadata: %w", err)
+	}
+	colonIndex = strings.Index(dataLine, ":")
+	eventContentData := dataLine[colonIndex+1:]
+	if eventData == "query" {
+		err := json.Unmarshal([]byte(eventContentData), &queryMetadata)
 		if err != nil {
 			res.Body.Close()
-			return nil, fmt.Errorf("failed to retrieve query metadata: %w", err)
-		}
-		colonIndex := strings.Index(dataLine, ":")
-		eventContentData := dataLine[colonIndex+1:]
-		if eventData == "query" {
-			err := json.Unmarshal([]byte(eventContentData), &queryMetadata)
-			if err != nil {
-				res.Body.Close()
-				return nil, fmt.Errorf("failed to unmarshall query header: %w", err)
-			}
-		} else {
-			res.Body.Close()
-			return nil, fmt.Errorf("the first event from sse has to be a query: %w", err)
+			return nil, fmt.Errorf("failed to unmarshall query header: %w", err)
 		}
 	} else {
 		res.Body.Close()
-		return nil, fmt.Errorf("the first result from sse has to be a event: %w", err)
+		return nil, fmt.Errorf("the first event from sse has to be a query: %w", err)
 	}
 
 	// Read the rest in a streaming way
@@ -378,17 +378,3 @@ func (s *TimeplusClient) queryStreamV2(sql string, batchCount int, batchBufferTi
 func (s *TimeplusClient) QueryStream(sql string, batchCount int, batchBufferTime int) (*QueryResultStream, error) {
 	return s.queryStreamV2(sql, batchCount, batchBufferTime)
 }
-
-// func (s *TimeplusClient) QueryStreamWithHeader(sql string, batchCount int, batchBufferTime int) (rxgo.Observable, func(), []ColumnDef, error) {
-// 	dataStream, cancel, queryEvent, err := s.QueryStream(sql, batchCount, batchBufferTime)
-// 	if err != nil {
-// 		return nil, nil, nil, err
-// 	}
-
-// 	var queryInfo QueryInfo
-// 	err = mapstructure.Decode(queryEvent, &queryInfo)
-// 	if err != nil {
-// 		return nil, nil, nil, err
-// 	}
-// 	return dataStream, cancel, queryInfo.Result.Header, nil
-// }
